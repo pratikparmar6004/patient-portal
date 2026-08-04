@@ -121,10 +121,11 @@ def provider_dashboard(request):
 
 
 
+@transaction.atomic
 def cancel_appointment(request, appointment_id):
     """
     Patient can cancel only CONFIRMED appointments.
-    Pending appointments cannot be cancelled.
+    Implements Optimistic Locking (Problem 1).
     """
 
     patient = Patient.objects.first()
@@ -135,7 +136,7 @@ def cancel_appointment(request, appointment_id):
         patient=patient,
     )
 
-    # Only confirmed appointments can be cancelled
+    # Check if appointment is confirmed
     if appointment.status != "confirmed":
 
         messages.error(
@@ -145,7 +146,25 @@ def cancel_appointment(request, appointment_id):
 
         return redirect("patient_dashboard")
 
-    # Save history before updating
+    # ---------- Problem 1 : Optimistic Locking ----------
+    submitted_version = int(
+        request.POST.get(
+            "version",
+            appointment.version,
+        )
+    )
+
+    if submitted_version != appointment.version: # checking if the submitted version is same is of appointment version
+
+        messages.error(
+            request,
+            "This appointment has already been modified by the provider. Please refresh the page."
+        )
+
+        return redirect("patient_dashboard")
+    # ----------------------------------------------------
+
+    # Save appointment history (Problem 2)
     AppointmentHistory.objects.create(
         appointment=appointment,
         previous_status=appointment.status,
@@ -157,8 +176,12 @@ def cancel_appointment(request, appointment_id):
         changed_by="Patient",
     )
 
+    # Update appointment
     appointment.status = "cancelled"
-    appointment.version += 1 # solving 1 problem using optimistic locking by increment the version at each update 
+
+    # Increment version after successful update
+    appointment.version += 1
+
     appointment.save()
 
     messages.success(
@@ -183,6 +206,22 @@ def confirm_appointment(request, appointment_id):
         id=appointment_id,
     )
 
+    # -------- Problem 1 --------
+    submitted_version = int(     # getting the submitted version as well broswer version   
+        request.POST.get(
+            "version",
+            appointment.version,
+        )
+    )
+    if submitted_version != appointment.version: # if the version of both dosent match provide errr message
+
+        messages.error(
+            request,
+            "This appointment was modified by another user. Please refresh the page."
+        )
+
+        return redirect("provider_dashboard")
+
     if appointment.status != "pending":
 
         messages.error( 
@@ -192,7 +231,7 @@ def confirm_appointment(request, appointment_id):
 
         return redirect("provider_dashboard")
 
-    AppointmentHistory.objects.create(
+    AppointmentHistory.objects.create( # since version are not same then the request is rejected these solve the problem 2 of This solves Problem 2 by recording the previous state before making changes and save in  the history  table for audit logs
         appointment=appointment,
         previous_status=appointment.status,
         new_status="confirmed",
@@ -205,7 +244,10 @@ def confirm_appointment(request, appointment_id):
 
     appointment.status = "confirmed"
 
-    appointment.version += 1 # once provider confirmed appoinment version column increment with the change of appoinmwnt in databse with new appoinment detials with new version
+    appointment.version += 1 #To properly implement optimistic locking, we need to:
+                            # Add a hidden version field to the form.
+                            # Compare the submitted version with the current database version.
+                            # Reject stale updates if the versions don't match. once provider confirmed appoinment version column increment with the change of appoinmwnt in databse with new appoinment detials with new version
 
     appointment.save()
 
@@ -220,7 +262,12 @@ def confirm_appointment(request, appointment_id):
 #provider reschedule the appoinment 
 
 @transaction.atomic
+
 def reschedule_appointment(request, appointment_id):
+    """
+    Provider can reschedule an appointment.
+    Implements Optimistic Locking (Problem 1).
+    """
 
     appointment = get_object_or_404(
         Appointment,
@@ -236,9 +283,25 @@ def reschedule_appointment(request, appointment_id):
 
         if form.is_valid():
 
+            # Version submitted by the browser
+            submitted_version = form.cleaned_data["version"]
+
+            # -------- Problem 1 --------
+            if submitted_version != appointment.version:
+
+                messages.error(
+                    request,
+                    "This appointment has already been updated by another user. Please refresh the page."
+                )
+
+                return redirect("provider_dashboard")
+
+            # --------------------------
+
             updated = form.save(commit=False)
 
-            AppointmentHistory.objects.create(   #appointment history table stored the changes made by patient daoctor or provider to track the aduit trial log 
+            # Save history before updating
+            AppointmentHistory.objects.create(
                 appointment=appointment,
                 previous_status=appointment.status,
                 new_status=updated.status,
@@ -249,9 +312,10 @@ def reschedule_appointment(request, appointment_id):
                 changed_by="Provider",
             )
 
-            updated.version += 1 # 
+            # Increment version
+            updated.version += 1
 
-            updated.save() # every update create the history row nothing is overwritten 
+            updated.save()
 
             messages.success(
                 request,
@@ -270,10 +334,9 @@ def reschedule_appointment(request, appointment_id):
         request,
         "appointment_form.html",
         {
-            "form": form
+            "form": form,
         },
     )
-
 #However, the code above only increments the version. It does not yet check whether the version submitted by the user matches the current version in the database.
 
 # To fully implement optimistic locking, we need to:
