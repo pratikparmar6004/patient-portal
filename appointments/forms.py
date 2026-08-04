@@ -42,6 +42,11 @@ class ProviderAppointmentUpdateForm(forms.ModelForm):
     1. Confirm
     2. Reschedule
     """
+    # created a Hidden field used for Optimistic Locking
+    version = forms.IntegerField(
+        widget=forms.HiddenInput()
+    )
+
 
     class Meta:
         model = Appointment
