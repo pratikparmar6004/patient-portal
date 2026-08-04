@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card p-5 shadow">
+
+    <h3 class="text-center mb-4">
+
+        Select Your Role
+
+    </h3>
+
+    <div class="text-center">
+
+        <a href="{% url 'patient_dashboard' %}"
+
+           class="btn btn-primary me-3">
+
+            Patient
+
+        </a>
+
+        <a href="{% url 'provider_dashboard' %}"
+
+           class="btn btn-success">
+
+            Provider
+
+        </a>
+
+    </div>
+
+</div>
+
+{% endblock %}
