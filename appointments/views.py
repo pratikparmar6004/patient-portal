@@ -1,4 +1,7 @@
+import threading
+from .notifications import send_confirmation_notification
 from django.contrib import messages
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
