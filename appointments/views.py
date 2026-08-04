@@ -254,6 +254,17 @@ def confirm_appointment(request, appointment_id):
 
     appointment.save()
 
+    # Start background notification. since appointment is saved with confirmed status sned notifiaction in backgroung
+    # solving the problem 3
+
+    threading.Thread(
+        target=send_confirmation_notification,
+        args=(appointment,),
+        daemon=True,
+    ).start()
+
+
+
     messages.success(
         request,
         "Appointment confirmed successfully."
