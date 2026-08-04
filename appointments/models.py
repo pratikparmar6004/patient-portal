@@ -26,7 +26,7 @@ class Provider(models.Model):
 # -----------------------------
 # Appointment Model
 # -----------------------------
-class Appointment(models.Model):
+class Appointment(models.Model): # appointment table hold the current state of the appointment information
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -80,3 +80,57 @@ class Appointment(models.Model):
             f"{self.appointment_date}"
         )
 
+
+# -----------------------------
+# Appointment History
+# Problem 2
+# -----------------------------
+class AppointmentHistory(models.Model):  # creating and appointmnet history table to store every changes made over the time these provide complete audit trial and does not affect the application performace 
+
+    appointment = models.ForeignKey( # appointment table stores the current state of the appointment in database where as history stores all the changes made and who made and 
+        Appointment,
+        on_delete=models.CASCADE,
+        related_name="history",
+    )
+
+    previous_status = models.CharField(
+        max_length=20
+    )
+
+    new_status = models.CharField(
+        max_length=20
+    )
+
+    previous_date = models.DateField()
+
+    previous_time = models.TimeField()
+
+    new_date = models.DateField()
+
+    new_time = models.TimeField()
+
+    changed_by = models.CharField(
+        max_length=20
+    )
+
+    changed_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return (
+            f"{self.appointment.id} "
+            f"{self.previous_status} -> {self.new_status}"
+        )
+
+    # This approach separates the current appointment state from the history of changes.
+    
+# Example fields:
+# appointment_id → Appointment being modified
+# changed_by → User (patient, doctor, admin)
+# field_name → appointment_time, status, doctor, etc.
+# old_value → Previous value
+# new_value → Updated value
+# action → CREATED, RESCHEDULED, CANCELLED, CONFIRMED
+# reason → Optional explanation
+# changed_at → Timestamp
