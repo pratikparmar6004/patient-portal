@@ -37,6 +37,7 @@ def request_appointment(request):
 
     # Temporary patient until authentication is added
     patient = Patient.objects.first()
+    provider = Provider.objects.first()
 
     if request.method == "POST":
 
@@ -47,7 +48,7 @@ def request_appointment(request):
             appointment = form.save(commit=False)
 
             appointment.patient = patient
-
+            appointment.provider = provider
             appointment.status = "pending"
 
             appointment.save()
@@ -204,19 +205,24 @@ def confirm_appointment(request, appointment_id):
     Provider confirms an appointment.
     """
 
-    appointment = get_object_or_404(
-        Appointment,
-        id=appointment_id,
+    # Lock the appointment row (Problem 4)
+    appointment = (
+        Appointment.objects
+        .select_for_update()
+        .get(id=appointment_id)
     )
 
     # -------- Problem 1 --------
-    submitted_version = int(     # getting the submitted version as well broswer version   
+    # Get the version submitted by the browser.
+    submitted_version = int(
         request.POST.get(
             "version",
             appointment.version,
         )
     )
-    if submitted_version != appointment.version: # if the version of both dosent match provide errr message
+
+    # Compare submitted version with database version.
+    if submitted_version != appointment.version:
 
         messages.error(
             request,
@@ -225,16 +231,41 @@ def confirm_appointment(request, appointment_id):
 
         return redirect("provider_dashboard")
 
+    # Appointment must still be pending.
     if appointment.status != "pending":
 
-        messages.error( 
+        messages.error(
             request,
             "Appointment is already processed."
         )
 
         return redirect("provider_dashboard")
 
-    AppointmentHistory.objects.create( # since version are not same then the request is rejected these solve the problem 2 of This solves Problem 2 by recording the previous state before making changes and save in  the history  table for audit logs
+    # -------- Problem 4 --------
+    # Check whether the provider already has another appointment at same time 
+    # conflict detection this checks whether the provider already has another confirmed appointment at the same date and time.
+    conflict = Appointment.objects.filter(
+        provider=appointment.provider,
+        appointment_date=appointment.appointment_date,
+        appointment_time=appointment.appointment_time,
+        status="confirmed",
+    ).exclude(
+        id=appointment.id,
+    ).exists()
+    
+    #This stops the confirmation, making overlapping confirmed appointments impossible through this confirmation flow.
+    if conflict:
+
+        messages.error(
+            request,
+            "Provider already has another confirmed appointment at this time."
+        )
+
+        return redirect("provider_dashboard")
+
+    # -------- Problem 2 --------
+    # Save appointment history before updating.
+    AppointmentHistory.objects.create(
         appointment=appointment,
         previous_status=appointment.status,
         new_status="confirmed",
@@ -245,25 +276,21 @@ def confirm_appointment(request, appointment_id):
         changed_by="Provider",
     )
 
+    # Update appointment.
     appointment.status = "confirmed"
 
-    appointment.version += 1 #To properly implement optimistic locking, we need to:
-                            # Add a hidden version field to the form.
-                            # Compare the submitted version with the current database version.
-                            # Reject stale updates if the versions don't match. once provider confirmed appoinment version column increment with the change of appoinmwnt in databse with new appoinment detials with new version
+    # Increment version for optimistic locking.
+    appointment.version += 1
 
     appointment.save()
 
-    # Start background notification. since appointment is saved with confirmed status sned notifiaction in backgroung
-    # solving the problem 3
-
+    # -------- Problem 3 --------
+    # Start notification in the background.
     threading.Thread(
         target=send_confirmation_notification,
         args=(appointment,),
         daemon=True,
     ).start()
-
-
 
     messages.success(
         request,
