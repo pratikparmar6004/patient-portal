@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .forms import (
     AppointmentRequestForm,
     ProviderAppointmentUpdateForm,
+    RoleSelectionForm,
 )
 from .models import (
     Appointment,
@@ -19,24 +20,58 @@ from .models import (
 
 def home(request):
     """
-    Landing page.
-    User selects whether they are
-    Patient or Provider.
+    Home page with a simple role switcher.
+    Stores the selected patient/provider in the session.
     """
+
+    if request.method == "POST":
+
+        form = RoleSelectionForm(request.POST)
+
+        if form.is_valid():
+
+            role = form.cleaned_data["role"]
+
+            request.session["role"] = role
+
+            if role == "patient":
+
+                request.session["patient_id"] = (
+                    form.cleaned_data["patient"].id
+                )
+
+                return redirect("patient_dashboard")
+
+            else:
+
+                request.session["provider_id"] = (
+                    form.cleaned_data["provider"].id
+                )
+
+                return redirect("provider_dashboard")
+
+    else:
+
+        form = RoleSelectionForm()
 
     return render(
         request,
         "home.html",
+        {
+            "form": form,
+        },
     )
-
 
 def request_appointment(request):
     """
     Patient requests a new appointment.
     """
 
-    # Temporary patient until authentication is added
-    patient = Patient.objects.first()
+    patient = get_object_or_404(
+    Patient,
+    id=request.session["patient_id"],
+    )
+
     provider = Provider.objects.first()
 
     if request.method == "POST":
@@ -78,9 +113,15 @@ def patient_dashboard(request):
     Displays all appointments for a patient.
     """
 
-    # Temporary patient until authentication is added
-    patient = Patient.objects.first()
+    patient_id = request.session.get("patient_id")
 
+    if not patient_id:
+        return redirect("home")
+
+    patient = get_object_or_404(
+        Patient,
+        id=patient_id,
+    )
     appointments = (
         Appointment.objects
         .filter(patient=patient)
@@ -103,7 +144,15 @@ def provider_dashboard(request):
     Displays all appointments for a provider.
     """
 
-    provider = Provider.objects.first()
+    provider_id = request.session.get("provider_id")
+
+    if not provider_id:
+        return redirect("home")
+
+    provider = get_object_or_404(
+        Provider,
+        id=provider_id,
+    )
 
     appointments = (
         Appointment.objects
@@ -252,7 +301,7 @@ def confirm_appointment(request, appointment_id):
     ).exclude(
         id=appointment.id,
     ).exists()
-    
+
     #This stops the confirmation, making overlapping confirmed appointments impossible through this confirmation flow.
     if conflict:
 
