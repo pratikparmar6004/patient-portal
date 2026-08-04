@@ -2,33 +2,57 @@
 
 {% block content %}
 
-<div class="card p-5 shadow">
+<div class="card shadow p-4">
 
-    <h3 class="text-center mb-4">
+    <h2 class="mb-4">
+        Patient Portal
+    </h2>
 
-        Select Your Role
+    <form method="POST">
 
-    </h3>
+        {% csrf_token %}
 
-    <div class="text-center">
+        {{ form.non_field_errors }}
 
-        <a href="{% url 'patient_dashboard' %}"
+        <div class="mb-3">
 
-           class="btn btn-primary me-3">
+            <label class="form-label">
+                Select Role
+            </label>
 
-            Patient
+            {{ form.role }}
 
-        </a>
+        </div>
 
-        <a href="{% url 'provider_dashboard' %}"
+        <div class="mb-3">
 
-           class="btn btn-success">
+            <label class="form-label">
+                Select Patient
+            </label>
 
-            Provider
+            {{ form.patient }}
 
-        </a>
+        </div>
 
-    </div>
+        <div class="mb-3">
+
+            <label class="form-label">
+                Select Provider
+            </label>
+
+            {{ form.provider }}
+
+        </div>
+
+        <button
+            type="submit"
+            class="btn btn-primary">
+
+            Continue
+
+        </button>
+
+    </form>
 
 </div>
 
