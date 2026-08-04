@@ -14,7 +14,17 @@ from .models import (
 )
 
 
+def home(request):
+    """
+    Landing page.
+    User selects whether they are
+    Patient or Provider.
+    """
 
+    return render(
+        request,
+        "home.html",
+    )
 
 
 def patient_dashboard(request):
