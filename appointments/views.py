@@ -27,6 +27,48 @@ def home(request):
     )
 
 
+def request_appointment(request):
+    """
+    Patient requests a new appointment.
+    """
+
+    # Temporary patient until authentication is added
+    patient = Patient.objects.first()
+
+    if request.method == "POST":
+
+        form = AppointmentRequestForm(request.POST)
+
+        if form.is_valid():
+
+            appointment = form.save(commit=False)
+
+            appointment.patient = patient
+
+            appointment.status = "pending"
+
+            appointment.save()
+
+            messages.success(
+                request,
+                "Appointment request submitted successfully."
+            )
+
+            return redirect("patient_dashboard")
+
+    else:
+
+        form = AppointmentRequestForm()
+
+    return render(
+        request,
+        "appointment_form.html",
+        {
+            "form": form,
+        },
+    )
+
+
 def patient_dashboard(request):
     """
     Displays all appointments for a patient.
